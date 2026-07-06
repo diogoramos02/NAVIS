@@ -1,0 +1,28 @@
+{
+    "resolution": {
+        "width": 1920,
+        "height": 1080
+    },
+    "intrinsics": {
+        "fx": 927.06,
+        "fy": 927.06,
+        "cx": 960.0,
+        "cy": 540.0
+    },
+    "extrinsics_left": {
+        "tx": 1.0,
+        "ty": 0,
+        "tz": -0.5,
+        "pitch_offset_deg": 0.0,
+        "roll_offset_deg": 0.0,
+        "yaw_offset_deg": 90.0
+    },
+    "extrinsics_right": {
+        "tx": -1.0,
+        "ty": 0,
+        "tz": -0.5,
+        "pitch_offset_deg": 0.0,
+        "roll_offset_deg": 0.0,
+        "yaw_offset_deg": 90.0
+    }
+}
