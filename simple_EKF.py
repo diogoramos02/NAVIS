@@ -1,6 +1,7 @@
+import os
+os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 from helpers import *
 import numpy as np
-import os
 from ultralytics import YOLO
 import matplotlib.pyplot as plt
 
@@ -13,7 +14,7 @@ import matplotlib.pyplot as plt
 
 # PATH TO TRAJECTORY DIRECTORY #
 
-DIRECTORY_PATH = r'C:\Thesis\NAVIS\trajectory2'
+DIRECTORY_PATH = r'C:\Trajectories\trajectory3'
 
 # PATH TO DRONE IMU DATA #
 
@@ -29,7 +30,7 @@ IMAGES_PATH = os.path.join(DIRECTORY_PATH, 'images')
 
 # PATH TO YOLO MODEL #
 
-MODEL_PATH = r'C:\Thesis\NAVIS\best.pt'
+MODEL_PATH = r'C:\Users\Diogo Ramos\Desktop\NAVIS_DiogoRamos\NAVIS\EKF\best.pt'
 
 
 
@@ -49,8 +50,6 @@ intrinsics = get_intrinsics()
 left_extrinsics = get_extrinsics('left',0,12,-3.5,0,0,0) 
 right_extrinsics = get_extrinsics('right',0,12, -3.5,0,0,0) 
 
-#left_projection = intrinsics @ left_extrinsics
-#right_projection = intrinsics @ right_extrinsics
 
 #Get the projection matrixes for triangulation in OpenCV format
 left_projection = get_projection_matrix(intrinsics, left_extrinsics)
@@ -59,34 +58,23 @@ right_projection = get_projection_matrix(intrinsics, right_extrinsics)
 
 ########################################################
 #                                                      #
-#             FINDING INITIAL FRAME                    #
+#          FORMATING THE TIMESTAMPS                    #
 #                                                      #
 ########################################################
-
-
-trajectory_start_frame = 125
 
 starting_position = get_starting_position(DIRECTORY_PATH)
 
-filtered_df_ship = df_ship[df_ship['frame'].astype(int)>= trajectory_start_frame].copy()
-initial_timestamp = filtered_df_ship['timestamp'].min()
-filtered_df_ship['timestamp'] = filtered_df_ship['timestamp'] - initial_timestamp
+trajectory_start_time = df_drone['timestamp'].min()
+trajectory_end_time = df_drone['timestamp'].max()
 
-initial_timestamp = df_drone['timestamp'].min()
-df_drone['timestamp'] = df_drone['timestamp'] - initial_timestamp
+
+filtered_df_ship = df_ship[df_ship['timestamp'] >= trajectory_start_time].copy()
+filtered_df_ship = filtered_df_ship[filtered_df_ship['timestamp'] <= trajectory_end_time].copy()
+filtered_df_ship['timestamp'] = filtered_df_ship['timestamp'] - trajectory_start_time
+
+df_drone['timestamp'] = df_drone['timestamp'] - trajectory_start_time
 
 previous_timestamp = None
-
-########################################################
-#                                                      #
-#              FINDING FINAL FRAME                     #
-#                                                      #
-########################################################
-
-
-trajectory_duration = df_drone['timestamp'].max()
-
-filtered_df_ship = filtered_df_ship[filtered_df_ship['timestamp']<= trajectory_duration]
 
 
 ########################################################
@@ -223,8 +211,19 @@ for idx, row in filtered_df_ship.iterrows():
         print(f"Warning: Images for frame {frame_str} not found. Skipping.")
         continue
     
-    res_left = model(left_img_path, verbose=False)[0] 
-    res_right = model(right_img_path, verbose=False)[0]
+    # 2. Check if the files are entirely empty (0 bytes)
+    if os.path.getsize(left_img_path) == 0 or os.path.getsize(right_img_path) == 0:
+        print(f"Warning: Images for frame {frame_str} are empty (0 bytes). Skipping.")
+        continue
+    
+    # 3. Try to process the images, catch OpenCV decoding errors if they are corrupted
+    try:
+        res_left = model(left_img_path, verbose=False)[0] 
+        res_right = model(right_img_path, verbose=False)[0]
+    except Exception as e:
+        print(f"Warning: Corrupted image at frame {frame_str}. Model error: {e}. Skipping.")
+        continue
+    
 
     left_detected = len(res_left.boxes) > 0
     right_detected = len(res_right.boxes) > 0
@@ -300,6 +299,12 @@ df_ekf.to_csv("ekf_output.csv", index=False)
 print(df_ekf.head())
 
 
+########################################################
+#                                                      #
+#                 Forat ground truth                   #
+#                                                      #
+########################################################
+df_gt_matched = match_nearest(df_drone, df_ekf, source_col='timestamp', target_col='timestamp')
 
 
 ########################################################
@@ -308,8 +313,6 @@ print(df_ekf.head())
 #                                                      #
 ########################################################
 
-
-df_gt_matched = match_nearest(df_drone, df_ekf)
 
 fig, axes = plt.subplots(3, 1, figsize=(12, 10), sharex=True)
 fig.suptitle("EKF Position Estimate vs Ground Truth", fontsize=14)
@@ -332,6 +335,7 @@ for ax, label, ekf_col, gt_col, var_col in zip(
     ax.plot(t, df_ekf[ekf_col], 
             color="red", linestyle="--", linewidth=1.5, label="EKF Estimate")
 
+
     # Uncertainty band (±2 standard deviations = 95% confidence)
     std = np.sqrt(df_ekf[var_col])
     ax.fill_between(t,
@@ -346,6 +350,42 @@ for ax, label, ekf_col, gt_col, var_col in zip(
 axes[-1].set_xlabel("Time (s)")
 plt.tight_layout()
 plt.savefig("ekf_position.png", dpi=150)
+
+fig_vel, axes_vel = plt.subplots(3, 1, figsize=(12, 10), sharex=True)
+fig_vel.suptitle("EKF Velocity Estimate vs Ground Truth", fontsize=14)
+
+vel_labels   = ["Vx - North (m/s)", "Vy - East (m/s)", "Vz - Down (m/s)"]
+vel_ekf_cols = ["ekf_vx", "ekf_vy", "ekf_vz"]  # Update these if your columns differ
+vel_gt_cols  = ["vel_x",  "vel_y",  "vel_z"]   # Update these if your columns differ
+vel_var_cols = ["var_vx", "var_vy", "var_vz"]  # Update these if your columns differ
+
+for ax, label, ekf_col, gt_col, var_col in zip(
+        axes_vel, vel_labels, vel_ekf_cols, vel_gt_cols, vel_var_cols):
+
+    # Ground truth
+    ax.plot(t, df_gt_matched[gt_col], 
+            color="blue", linewidth=2, label="Ground Truth")
+
+    # EKF estimate
+    ax.plot(t, df_ekf[ekf_col], 
+            color="orange", linestyle="--", linewidth=1.5, label="EKF Estimate")
+
+    # Uncertainty band
+    std = np.sqrt(df_ekf[var_col])
+    ax.fill_between(t,
+                    df_ekf[ekf_col] - 2 * std,
+                    df_ekf[ekf_col] + 2 * std,
+                    color="orange", alpha=0.15, label="±2σ uncertainty")
+
+    ax.set_ylabel(label)
+    ax.legend(loc="upper right")
+    ax.grid(True, alpha=0.3)
+
+axes[-1].set_xlabel("Time (s)")
+plt.tight_layout()
+plt.savefig("ekf_velocity.png", dpi=150)
+
+# Show both plots
 plt.show()
 
 # Position error over time
