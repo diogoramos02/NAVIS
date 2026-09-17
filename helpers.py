@@ -54,6 +54,7 @@ def get_extrinsics(cam, px, py, pz, p, y, r):
     tx = cam_settings[key]['tx']
     ty = cam_settings[key]['ty']
     tz = cam_settings[key]['tz']
+
     pitch_off = cam_settings[key]['pitch_offset_deg']
     roll_off  = cam_settings[key]['roll_offset_deg']
     yaw_off   = cam_settings[key]['yaw_offset_deg']
@@ -84,14 +85,11 @@ def get_extrinsics(cam, px, py, pz, p, y, r):
     T = T_KW[:3, :]
 
     E_cv = np.zeros((3, 4))
-    
-    # OpenCV X (Right)   <- NED Y
+
+
+    #Switch the columns to openCV convention
     E_cv[0, :] = T[1, :] 
-    
-    # OpenCV Y (Down)    <- NED Z
     E_cv[1, :] = T[2, :] 
-    
-    # OpenCV Z (Forward) <- NED X
     E_cv[2, :] = T[0, :]
 
 
@@ -153,9 +151,9 @@ def format_data(capture_log_path, drone_imu_path, directory_path):
     df_ship['y'] = df_ship['y'] / 100
     df_ship['z'] = -df_ship['z'] / 100
 
-    df_ship['roll'] = np.radians(-df_ship['roll'])
+    df_ship['roll'] = np.radians(df_ship['roll'])
     df_ship['yaw'] = np.radians(df_ship['yaw'])
-    df_ship['pitch'] = np.radians(-df_ship['pitch'])
+    df_ship['pitch'] = np.radians(df_ship['pitch'])
 
     return df_ship, df_drone
 

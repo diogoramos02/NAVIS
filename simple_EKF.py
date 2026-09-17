@@ -13,7 +13,7 @@ import matplotlib.pyplot as plt
 
 
 # PATH TO TRAJECTORY DIRECTORY #
-DIRECTORY_PATH = r'C:\Trajectories\trajectory3'
+DIRECTORY_PATH = r'C:\Captures'
 
 # PATH TO DRONE IMU DATA #
 DRONE_IMU_PATH = os.path.join(DIRECTORY_PATH, 'drone_imu.csv')
@@ -42,8 +42,8 @@ df_ship, df_drone = format_data(SHIP_IMU_PATH, DRONE_IMU_PATH, DIRECTORY_PATH)
 model = YOLO(MODEL_PATH)
 
 intrinsics = get_intrinsics()
-left_extrinsics = get_extrinsics('left',0,12,-3.5,0,0,0) 
-right_extrinsics = get_extrinsics('right',0,12, -3.5,0,0,0) 
+left_extrinsics = get_extrinsics('left',0,0,0,0,0,0) 
+right_extrinsics = get_extrinsics('right',0,0,0,0,0,0) 
 
 
 #Get the projection matrixes for triangulation in OpenCV format
@@ -158,7 +158,7 @@ x = np.array([intital_position_estimate[0], intital_position_estimate[1], intita
 #           SET THE PARAMETERS OF THE EKF              #
 #                                                      #
 ########################################################
-acceleration_variance = 1.0
+acceleration_variance = 0.01
 acceleration_covariance = acceleration_variance * np.eye(3)
 
 P = initialize_state_covariance(position_variance=9.0, velocity_variance=0.2)
@@ -312,6 +312,8 @@ for idx, row in filtered_df_ship.iterrows():
         'right_detected' : len(res_right.boxes) > 0,
     })
 
+    
+
     previous_timestamp = new_timestamp
 
 
@@ -320,9 +322,9 @@ df_ekf = df_ekf.sort_values(by='timestamp').reset_index(drop=True)
 df_ekf.to_csv("ekf_output.csv", index=False)
 print(df_ekf.head())
 
-df_drone['pos_x'] = df_drone['pos_x'] - df_drone['ship_pos_x']
-df_drone['pos_y'] = df_drone['pos_y'] - df_drone['ship_pos_y']
-df_drone['pos_z'] = df_drone['pos_z'] - df_drone['ship_pos_z']
+#df_drone['pos_x'] = df_drone['pos_x'] - df_drone['ship_pos_x']
+#df_drone['pos_y'] = df_drone['pos_y'] - df_drone['ship_pos_y']
+#df_drone['pos_z'] = df_drone['pos_z'] - df_drone['ship_pos_z']
 
 #df_drone['vel_x'] = df_drone['vel_x'] - df_drone['ship_vel_x']
 #df_drone['vel_y'] = df_drone['vel_y'] - df_drone['ship_vel_y']

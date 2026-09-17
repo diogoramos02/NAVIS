@@ -13,7 +13,7 @@ import matplotlib.pyplot as plt
 
 
 # PATH TO TRAJECTORY DIRECTORY #
-DIRECTORY_PATH = r'C:\Trajectories\trajectory3'
+DIRECTORY_PATH = r'C:\Captures'
 
 # PATH TO DRONE IMU DATA #
 DRONE_IMU_PATH = os.path.join(DIRECTORY_PATH, 'drone_imu.csv')
@@ -42,13 +42,10 @@ df_ship, df_drone = format_data(SHIP_IMU_PATH, DRONE_IMU_PATH, DIRECTORY_PATH)
 model = YOLO(MODEL_PATH)
 
 intrinsics = get_intrinsics()
-left_extrinsics = get_extrinsics('left',0,0) 
-right_extrinsics = get_extrinsics('right',0,0) 
+
 
 
 #Get the projection matrixes for triangulation in OpenCV format
-left_projection = get_projection_matrix(intrinsics, left_extrinsics)
-right_projection = get_projection_matrix(intrinsics, right_extrinsics)
 
 
 ########################################################
@@ -107,8 +104,12 @@ for index, row in filtered_df_ship.iterrows():
         left_results = res_left
         right_results = res_right
         previous_timestamp = row['timestamp']
+        left_extrinsics = get_extrinsics('left',row['pitch'], row['roll'])
+        right_extrinsics = get_extrinsics('right', row['pitch'], row['roll']) 
 
         break
+
+    
     
 
 print(f"Successful initial frame is: {successful_initial_frame}")
@@ -138,6 +139,10 @@ v_l = float(res_left.boxes.xywh[best_left_idx][1])
 u_r = float(res_right.boxes.xywh[best_right_idx][0])
 v_r = float(res_right.boxes.xywh[best_right_idx][1])
 
+left_projection = get_projection_matrix(intrinsics, left_extrinsics)
+right_projection = get_projection_matrix(intrinsics, right_extrinsics)
+
+
 intital_position_estimate = get_inital_position_estimate(u_l, v_l, left_projection, u_r, v_r, right_projection)
 
 print(f"Initial position estimate is: {intital_position_estimate}")
@@ -158,7 +163,7 @@ x = np.array([intital_position_estimate[0], intital_position_estimate[1], intita
 #           SET THE PARAMETERS OF THE EKF              #
 #                                                      #
 ########################################################
-acceleration_variance = 1.0
+acceleration_variance = 0.01
 acceleration_covariance = acceleration_variance * np.eye(3)
 
 P = initialize_state_covariance(position_variance=9.0, velocity_variance=0.2)
@@ -318,17 +323,42 @@ for idx, row in filtered_df_ship.iterrows():
         'right_detected' : len(res_right.boxes) > 0,
     })
 
+
+    #if left_detected or right_detected:
+    #        
+    #        # res.plot() returns a BGR numpy array with boxes drawn.
+    #        # If not detected, we just read the original raw image to keep the array shapes matching.
+    #        viz_left = res_left.plot() if left_detected else cv2.imread(left_img_path)
+    #        viz_right = res_right.plot() if right_detected else cv2.imread(right_img_path)
+            
+            # Stack them side-by-side (horizontally) for easy viewing
+    #        stereo_view = np.hstack((viz_left, viz_right))
+    #        stereo_view = cv2.resize(stereo_view, (0,0), fx=0.5, fy=0.5)
+            
+    #        window_name = "Stereo Drone Detection (Press any key to advance, 'q' to quit)"
+    #        cv2.imshow(window_name, stereo_view)
+            
+            # Wait indefinitely (0) until a keyboard key is pressed
+    #        key = cv2.waitKey(0) & 0xFF
+            
+            # Optional: Break the loop early if you press 'q'
+    #        if key == ord('q'):
+    #            print("Tracking visualization interrupted by user.")
+    #            cv2.destroyAllWindows()
+    #            break
+
     previous_timestamp = new_timestamp
 
+#cv2.destroyAllWindows()
 
 df_ekf = pd.DataFrame(results)
 df_ekf = df_ekf.sort_values(by='timestamp').reset_index(drop=True)
 df_ekf.to_csv("ekf_output.csv", index=False)
 print(df_ekf.head())
 
-df_drone['pos_x'] = df_drone['pos_x'] - df_drone['ship_pos_x']
-df_drone['pos_y'] = df_drone['pos_y'] - df_drone['ship_pos_y']
-df_drone['pos_z'] = df_drone['pos_z'] - df_drone['ship_pos_z']
+#df_drone['pos_x'] = df_drone['pos_x'] - df_drone['ship_pos_x']
+#df_drone['pos_y'] = df_drone['pos_y'] - df_drone['ship_pos_y']
+#df_drone['pos_z'] = df_drone['pos_z'] - df_drone['ship_pos_z']
 
 
 ########################################################
@@ -381,7 +411,7 @@ for ax, label, ekf_col, gt_col, var_col in zip(
 
 axes[-1].set_xlabel("Time (s)")
 plt.tight_layout()
-plt.savefig("simple_ekf_position.png", dpi=150)
+plt.savefig("ship_imu_ekf_position.png", dpi=150)
 
 fig_vel, axes_vel = plt.subplots(3, 1, figsize=(12, 10), sharex=True)
 fig_vel.suptitle("EKF Velocity Estimate vs Ground Truth", fontsize=14)
@@ -415,7 +445,7 @@ for ax, label, ekf_col, gt_col, var_col in zip(
 
 axes[-1].set_xlabel("Time (s)")
 plt.tight_layout()
-plt.savefig("simple_ekf_velocity.png", dpi=150)
+plt.savefig("ship_imu_ekf_velocity.png", dpi=150)
 
 # Show both plots
 plt.show()

@@ -40,65 +40,6 @@ def get_intrinsics():
 
 ### Derive intrinsic matrix for a camera ###
 ### Takes in variables in conventional ###
-def old_get_extrinsics(cam, px, py, pz, p, y, r):
-    """
-    px, py, pz : ship position in NED meters (already converted)
-    p, y, r    : ship pitch, yaw, roll in NED, IN DEGREES (not pre-converted to radians)
-    """
-
-    with open(r'C:\Users\Diogo Ramos\Desktop\NAVIS_DiogoRamos\NAVIS\EKF\config\camera_settings.json', 'r') as file:
-        cam_settings = json.load(file)
-
-    key = f'extrinsics_{cam}'
-
-    tx = cam_settings[key]['tx'] 
-    ty = cam_settings[key]['ty'] + 12.0
-    tz = cam_settings[key]['tz'] - 3.5
-    pitch_off = cam_settings[key]['pitch_offset_deg']
-    roll_off  = cam_settings[key]['roll_offset_deg']
-    yaw_off   = cam_settings[key]['yaw_offset_deg']
-
-    center_pos = np.array([px, py, pz])
-
-    # Ship body → world rotation, standard aerospace ZYX order
-    R_WC = Rotation.from_euler('ZYX', [y, p, r], degrees=False).as_matrix()
-
-    T_WC = np.eye(4)
-    T_WC[:3, :3] = R_WC
-    T_WC[:3, 3]  = center_pos
-
-    # Camera mount offset relative to ship body, same ZYX convention
-    cam_local_pos = np.array([tx, ty, tz])
-    R_CK = Rotation.from_euler('ZYX', [yaw_off, pitch_off, roll_off], degrees=True).as_matrix()
-
-    T_CK = np.eye(4)
-    T_CK[:3, :3] = R_CK
-    T_CK[:3, 3]  = cam_local_pos
-
-    # Camera pose in world frame
-    T_WK = T_WC @ T_CK
-
-    # World-to-camera transform (what you need for projection)
-    T_KW = np.linalg.inv(T_WK)
-
-    T = T_KW[:3, :]
-
-    E_cv = np.zeros((3, 4))
-    
-    # OpenCV X (Right)   <- NED Y
-    E_cv[0, :] = T[1, :] 
-    
-    # OpenCV Y (Down)    <- NED Z
-    E_cv[1, :] = T[2, :] 
-    
-    # OpenCV Z (Forward) <- NED X
-    E_cv[2, :] = T[0, :]
-
-
-    return E_cv
-
-
-
 
 def get_extrinsics(cam, p, r):
     """
@@ -127,9 +68,9 @@ def get_extrinsics(cam, p, r):
     # ── Camera mount parameters (in ship body frame) ──────────────────────────
     # Position offset is relative to (0, 12, 3.5) in NED ship body frame
     # Note: (0, 12, -3.5) in Unreal → (0, 12, +3.5) in NED (Z flips)
-    tx = cam_settings[key]['tx'] + 0.0
-    ty = cam_settings[key]['ty'] + 12.0
-    tz = cam_settings[key]['tz'] - 3.5
+    tx = cam_settings[key]['tx'] #+ 0.0
+    ty = cam_settings[key]['ty'] #+ 12.0
+    tz = cam_settings[key]['tz'] #- 3.5
 
     pitch_off = cam_settings[key]['pitch_offset_deg']
     roll_off  = cam_settings[key]['roll_offset_deg']
@@ -226,9 +167,9 @@ def format_data(capture_log_path, drone_imu_path, directory_path):
     df_ship['y'] = df_ship['y'] / 100
     df_ship['z'] = -df_ship['z'] / 100
 
-    df_ship['roll'] = np.radians(-df_ship['roll'])
+    df_ship['roll'] = np.radians(df_ship['roll'])
     df_ship['yaw'] = np.radians(df_ship['yaw'])
-    df_ship['pitch'] = np.radians(-df_ship['pitch'])
+    df_ship['pitch'] = np.radians(df_ship['pitch'])
 
     return df_ship, df_drone
 
