@@ -1,0 +1,28 @@
+{
+    "detector": {
+        "confidence": 0.5
+    },
+    "initial_covariance": {
+        "position": 64.0,
+        "velocity": 0.5,
+        "IMU_orientation": 0.5,
+        "AHRS_orientation": 5.0,
+        "bias": 0.000001,
+        "acceleration" : 0.01
+    },
+    "process_noise": {
+        "accelerometer": 0.5,
+        "gyroscope": 0.01
+    },
+    "measurement_noise": {
+        "pixel": 16.0
+    },
+    "ahrs": {
+        "noise_std_deg": 1.5,
+        "update_interval": 10
+    },
+    "mru": {
+        "roll_noise_std_deg": 0.2,
+        "pitch_noise_std_deg": 0.2
+    }
+}
